@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقييم المعلمين - منظومة إجادة</title>
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="print.css" media="print">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #f8fafc;
+        }
+        .header-gradient {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; padding: 0; margin: 0; }
+            .print-shadow { box-shadow: none !important; border: none !important; }
+            #printableArea { 
+                width: 100% !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                border: none !important;
+            }
+            #app {
+                box-shadow: none !important;
+                border: none !important;
+                width: 100% !important;
+                max-width: none !important;
+            }
+        }
+        .detail-table th, .detail-table td {
+            border: 1px solid #e2e8f0;
+            padding: 6px;
+            text-align: center;
+        }
+        .detail-table th {
+            background-color: #f1f5f9;
+            color: #1e3a8a;
+            font-weight: 700;
+        }
+        .rating-ممتاز { color: #059669; font-weight: bold; }
+        .rating-جيد-جدا { color: #2563eb; font-weight: bold; }
+        .rating-جيد { color: #d97706; font-weight: bold; }
+        .rating-مقبول { color: #ea580c; font-weight: bold; }
+        .rating-يحتاج-تدخل-سريع { color: #dc2626; font-weight: bold; }
+    </style>
+</head>
+<body class="p-2 md:p-6">
+
+    <div id="app" class="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden print-shadow">
+        
+        <!-- Official Header -->
+        <div id="report-header" class="header-gradient text-white p-6 md:p-10 relative no-print">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="text-center md:text-right space-y-1">
+                    <h2 class="text-xl font-bold">سلطنة عمان</h2>
+                    <h2 class="text-lg">وزارة التربية والتعليم</h2>
+                    <h3 class="text-md opacity-90">المديرية العامة للتربية والتعليم بمحافظة الباطنة شمال</h3>
+                    <h3 class="text-md font-semibold mt-2">مدرسة الصبيخي للتعليم الأساسي ( 5-10 ) بنين</h3>
+                </div>
+                <div class="text-center">
+                    <div class="bg-white/20 p-4 rounded-full backdrop-blur-md border border-white/30 mb-2">
+                        <span class="text-4xl font-black tracking-widest">إجـادة</span>
+                    </div>
+                    <p class="text-sm tracking-[0.2em] font-light">منظومة قياس الأداء</p>
+                </div>
+            </div>
+            <div class="mt-8 text-center border-t border-white/20 pt-4">
+                <h1 class="text-2xl md:text-3xl font-black">برنامج تقييم المعلمين المطور</h1>
+            </div>
+        </div>
+
+        <div class="p-4 md:p-8 space-y-6">
+            
+            <!-- Database Management -->
+            <section class="no-print bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300">
+                <div class="flex flex-wrap gap-4 items-center justify-between mb-4">
+                    <h3 class="font-bold text-blue-900 flex items-center gap-2">قاعدة بيانات المعلمين</h3>
+                    <div class="flex gap-2">
+                        <label class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded cursor-pointer text-sm transition-colors">
+                            استيراد Excel
+                            <input type="file" id="excelUpload" class="hidden" accept=".xlsx, .xls">
+                        </label>
+                        <button onclick="clearAllTeachers()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm transition-colors">حذف الكل</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Teachers Quick Access Table -->
+            <section class="no-print bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <div class="bg-blue-900 text-white p-3 font-bold flex justify-between items-center">
+                    <span>قائمة المعلمين المضافين (سرعة التنقل والحذف)</span>
+                    <span class="text-xs opacity-75">انقر على الاسم لعرض التقييم</span>
+                </div>
+                <div class="overflow-x-auto max-h-60 overflow-y-auto">
+                    <table class="w-full text-sm text-center">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="p-2 border">الاسم</th>
+                                <th class="p-2 border">الرقم الوظيفي</th>
+                                <th class="p-2 border">النسبة الحاليّة</th>
+                                <th class="p-2 border">التقدير</th>
+                                <th class="p-2 border">إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quickAccessBody">
+                            <!-- Dynamic Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Teacher Info Section -->
+            <section class="bg-white border-2 border-blue-50 p-6 rounded-2xl shadow-sm no-print space-y-6">
+                <!-- Main Info Row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div class="relative">
+                        <label class="block text-sm font-bold text-gray-700 mb-1 italic">1. اسم المعلم</label>
+                        <div class="flex items-center gap-2">
+                            <input list="teachersList" id="teacherSearch" oninput="autoFillTeacherData('name')" class="flex-1 border-blue-200 rounded-lg p-3 border outline-none focus:border-blue-500" placeholder="اكتب اسم المعلم...">
+                            <button type="button" onclick="performFieldSearch('name','teacherSearch')" class="bg-blue-900 hover:bg-blue-800 text-white p-2 rounded-lg" title="بحث">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18.5a7.5 7.5 0 006.15-1.85z"/></svg>
+                            </button>
+                        </div>
+                        <datalist id="teachersList"></datalist>
+                        <div id="searchResults_name" class="absolute left-0 right-0 mt-2 bg-white border rounded shadow max-h-44 overflow-y-auto hidden z-50"></div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1 italic">2. الرقم الوظيفي</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="jobId" oninput="autoFillTeacherData('id')" class="flex-1 border-blue-200 rounded-lg p-3 border outline-none focus:border-blue-500 font-bold" placeholder="الرقم الوظيفي">
+                            <button type="button" onclick="performFieldSearch('id','jobId')" class="bg-blue-900 hover:bg-blue-800 text-white p-2 rounded-lg" title="بحث">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18.5a7.5 7.5 0 006.15-1.85z"/></svg>
+                            </button>
+                        </div>
+                        <div id="searchResults_id" class="mt-1 bg-white border rounded shadow max-h-44 overflow-y-auto hidden z-50"></div>
+                    </div> 
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1 italic">3. المادة الدراسية</label>
+                        <div class="flex items-center gap-2">
+                            <select id="subject" onchange="autoFillTeacherData('subject')" class="flex-1 border-blue-200 rounded-lg p-3 border outline-none focus:border-blue-500 bg-white">
+                                <option value="">اختر المادة...</option>
+                                <option>التربية الإسلامية</option>
+                                <option>اللغة العربية</option>
+                                <option>الرياضيات</option>
+                                <option>اللغة الإنجليزية</option>
+                                <option>العلوم</option>
+                                <option>الدراسات الاجتماعية</option>
+                                <option>الفيزياء</option>
+                                <option>الكيمياء</option>
+                                <option>الأحياء</option>
+                                <option>تقنية المعلومات</option>
+                                <option>المهارات الحياتية</option>
+                                <option>الفنون التشكيلية</option>
+                                <option>المهارات الموسيقية</option>
+                            </select>
+                            <button type="button" onclick="performFieldSearch('subject','subject')" class="bg-blue-900 hover:bg-blue-800 text-white p-2 rounded-lg" title="بحث">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18.5a7.5 7.5 0 006.15-1.85z"/></svg>
+                            </button>
+                        </div>
+                        <div id="searchResults_subject" class="mt-1 bg-white border rounded shadow max-h-44 overflow-y-auto hidden z-50"></div>
+                    </div> 
+                    <div>
+                        <label class="block text-sm font-bold text-green-700 mb-1 italic">4. رقم الواتساب</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="phone" oninput="autoFillTeacherData('phone')" class="flex-1 border-green-200 rounded-lg p-3 border outline-none focus:border-green-600" placeholder="رقم الهاتف">
+                            <button type="button" onclick="performFieldSearch('phone','phone')" class="bg-blue-900 hover:bg-blue-800 text-white p-2 rounded-lg" title="بحث">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18.5a7.5 7.5 0 006.15-1.85z"/></svg>
+                            </button>
+                        </div>
+                        <div id="searchResults_phone" class="mt-1 bg-white border rounded shadow max-h-44 overflow-y-auto hidden z-50"></div>
+                    </div>
+                </div>
+
+                <!-- Academic Year Row -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4 border-blue-50">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1 italic">5. العام الدراسي (م)</label>
+                        <select id="academicYear" onchange="updateAll()" class="w-full border-blue-200 rounded-lg p-3 border outline-none focus:border-blue-500 bg-blue-50/50">
+                            <option value="2025 / 2026">2025 / 2026 م</option>
+                            <option value="2026 / 2027">2026 / 2027 م</option>
+                            <option value="2027 / 2028">2027 / 2028 م</option>
+                            <option value="2028 / 2029">2028 / 2029 م</option>
+                            <option value="2029 / 2030">2029 / 2030 م</option>
+                            <option value="2030 / 2031">2030 / 2031 م</option>
+                            <option value="2031 / 2032">2031 / 2032 م</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-blue-800 mb-1 italic">6. سنة التقييم</label>
+                        <select id="evaluationYear" onchange="updateAll()" class="w-full border-blue-200 rounded-lg p-3 border outline-none focus:border-blue-500 bg-blue-50/50">
+                            <option value="2025">2025 م</option>
+                            <option value="2026">2026 م</option>
+                            <option value="2027">2027 م</option>
+                            <option value="2028">2028 م</option>
+                            <option value="2029">2029 م</option>
+                            <option value="2030">2030 م</option>
+                            <option value="2031">2031 م</option>
+                            <option value="2032">2032 م</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end justify-end">
+                        <button onclick="saveCurrentEvaluation()" class="w-full bg-blue-900 hover:bg-blue-800 text-white p-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            حفظ البيانات والتقييم
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Technical Evaluation Grid -->
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mt-6">
+                    <h3 class="font-bold text-indigo-900 mb-2 border-b border-indigo-200 pb-2">ملخص الأداء الفني (1: الأعلى | 4: الأقل)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">تحصيل الطلبة في الأعمال الصفية وغير الصفية</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">التقدم الدراسي للطلبة بما فيهم ذوي الإعاقة والاحتياجات التعليمية</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">تطبيق مهارات التعلم ( الذاتي – التعاوني – الرقمي – التفكير العليا ) وربطها بالواقع</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">تمسك الطلبة بالهوية العمانية والقيم الإنسانية</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">متابعة جوانب الأمن والسلامة والنظافة في بيئة التعلم</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">تخطيط المنهاج الدراسي لتحقيق نواتج التعلم</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">فاعلية الإدارة الصفية</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">توظيف استراتيجيات التدريس الفعالة</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">تفعيل المصادر والموارد التعليمية</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">توظيف أساليب تقويم متنوعة</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">توظيف التقويم الذاتي والتطوير المهني في تحسين الأداء</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">تطبيق السياسات والأنظمة واللوائح المنظمة للعمل</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                            <span class="text-[11px] leading-tight">تنفيذ مبادرات وانشطة تربوية في المجتمع المدرسي</span>
+                            <input type="number" step="1" max="4" min="1" oninput="updateAll()" class="tech-item w-16 p-1 border border-indigo-200 rounded text-center font-bold" value="1">
+                        </div>
+                        <div class="col-span-1 md:col-span-2 lg:col-span-1 flex justify-between items-center bg-indigo-900 text-white p-2 rounded shadow-md">
+                            <span class="font-bold">نسبة المحور الفني</span>
+                            <span id="tech_final_display" class="font-black text-lg">75.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Administrative & Development Sections -->
+                <div class="space-y-4">
+                    <!-- Administrative Section -->
+                    <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                    <label class="block font-bold text-emerald-900 mb-3">المحور الإداري (خلال 8 أشهر)</label>
+                    
+                    <!-- جدول الحضور والانصراف الشهري -->
+                    <div class="bg-white p-3 rounded-lg border border-emerald-200 mb-3">
+                        <h4 class="font-bold text-emerald-800 mb-2 text-sm">الحضور والانصراف - سجل شهري (نسبة مئوية %)</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-[10px]">
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">يناير (31 يوم) %</label>
+                                <input type="number" id="month_1" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">فبراير (29 يوم) %</label>
+                                <input type="number" id="month_2" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">مارس (31 يوم) %</label>
+                                <input type="number" id="month_3" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">أبريل (30 يوم) %</label>
+                                <input type="number" id="month_4" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">مايو (31 يوم) %</label>
+                                <input type="number" id="month_5" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">يونيو (30 يوم) %</label>
+                                <input type="number" id="month_6" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-red-600">يوليو (15 يوم) %</label>
+                                <input type="number" id="month_7" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-red-300" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-red-600">أغسطس (10 يوم) %</label>
+                                <input type="number" id="month_8" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-red-300" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">سبتمبر (30 يوم) %</label>
+                                <input type="number" id="month_9" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">أكتوبر (31 يوم) %</label>
+                                <input type="number" id="month_10" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">نوفمبر (30 يوم) %</label>
+                                <input type="number" id="month_11" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                            <div class="text-center">
+                                <label class="font-bold text-gray-700">ديسمبر (31 يوم) %</label>
+                                <input type="number" id="month_12" min="0" max="100" step="0.01" oninput="updateAll()" class="w-full p-1 border rounded text-center font-bold border-emerald-200" value="100">
+                            </div>
+                        </div>
+                        <div class="mt-2 bg-emerald-100 p-2 rounded flex justify-between items-center">
+                            <span class="text-xs font-bold text-emerald-900">متوسط الحضور والانصراف (من 100%):</span>
+                            <span id="attendance_average" class="font-black text-emerald-900">100.00</span>
+                        </div>
+                    </div>
+
+                    <!-- باقي عناصر المحور الإداري -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3 text-center">
+                        <div>
+                            <span class="text-[10px] text-gray-500 font-bold">الطابور والاحتياط (90)</span>
+                            <input type="number" id="adm_2" placeholder="90" oninput="updateAll()" class="w-full p-2 border rounded text-center font-bold border-emerald-200" value="90">
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-gray-500 font-bold">المناوبة والحافلات (24)</span>
+                            <input type="number" id="adm_3" placeholder="24" oninput="updateAll()" class="w-full p-2 border rounded text-center font-bold border-emerald-200" value="24">
+                        </div>
+                    </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div class="flex justify-between items-center bg-emerald-700 text-white p-2 rounded shadow-sm">
+                                <span class="text-[10px]">النسبة الكلية 100%</span>
+                                <span id="adm_total_100" class="font-black">100.00</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-emerald-600 text-white p-2 rounded shadow-sm">
+                                <span class="text-[10px]">الحساب الفعلي × 10</span>
+                                <span id="adm_final_display" class="font-black">10.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Development Section -->
+                    <div class="bg-orange-50 p-4 rounded-xl border border-orange-100">
+                        <label class="block font-bold text-orange-900 mb-2">محور التطوير (أثر | ابتكار | مبادرة)</label>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div>
+                                <span class="text-[10px] text-gray-500 font-bold">أثـر ( 5 )</span>
+                                <input type="number" id="dev_1" placeholder="" oninput="updateAll()" class="w-full p-2 border rounded text-center font-bold border-orange-200" value="">
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-gray-500 font-bold">ابتكار ( 5 )</span>
+                                <input type="number" id="dev_2" placeholder="" oninput="updateAll()" class="w-full p-2 border rounded text-center font-bold border-orange-200" value="">
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-gray-500 font-bold">مبادرة ( 5 )</span>
+                                <input type="number" id="dev_3" placeholder="" oninput="updateAll()" class="w-full p-2 border rounded text-center font-bold border-orange-200" value="">
+                            </div>
+                        </div>
+                        <div class="mt-4 flex justify-between items-center bg-orange-600 text-white p-2 rounded">
+                            <span class="text-xs">إجمالي نقاط التطوير</span>
+                            <span id="dev_final_display" class="font-black">15.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Final Result Summary Box -->
+                    <div class="bg-blue-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row items-center justify-around gap-6 text-center">
+                        <div class="flex flex-col items-center bg-white/10 p-3 rounded-xl border border-white/20 min-w-[150px]">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-300 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span class="text-[10px] text-blue-200 font-bold uppercase tracking-wider">عام التقييم المختار</span>
+                            <span id="screen_selected_year" class="text-lg font-black text-white">...</span>
+                        </div>
+
+                        <div class="h-12 w-px bg-white/20 hidden md:block"></div>
+
+                        <div class="space-y-1">
+                            <span class="text-blue-200 text-sm font-bold block">النتيجة الإجمالية لمنظومة إجادة</span>
+                            <span id="screen_total_percent" class="text-4xl font-black">0.00%</span>
+                        </div>
+
+                        <div class="h-12 w-px bg-white/20 hidden md:block"></div>
+
+                        <div class="space-y-1">
+                            <span class="text-blue-200 text-sm font-bold block">التقدير العام</span>
+                            <span id="screen_final_rating" class="text-3xl font-black">...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PDF PRINTABLE AREA -->
+            <section id="printableArea" class="bg-white border-2 border-blue-900 p-8 rounded-lg shadow-lg">
+                <!-- Header -->
+                <div class="flex justify-between items-start border-b-4 border-blue-900 pb-2 mb-4">
+                    <div class="text-[9px] font-bold">
+                        <p>سلطنة عمان - وزارة التربية والتعليم</p>
+                        <p>محافظة الباطنة شمال</p>
+                        <p>مدرسة الصبيخي للتعليم الأساسي</p>
+                    </div>
+                    <div class="text-center">
+                        <h2 class="text-lg font-black text-blue-900 underline">بطاقة تقييم الأداء الوظيفي (إجادة)</h2>
+                        <p class="text-[9px] mt-1 font-bold">آلية الاحتساب: فني (75%) | إداري (10%) | تطوير (15%)</p>
+                    </div>
+                    <div class="text-left font-black text-xl border-2 border-blue-900 px-2">إجـــادة</div>
+                </div>
+
+                <!-- Profile Table -->
+                <table class="w-full detail-table mb-4 text-[10px]">
+                    <tr>
+                        <th width="15%">المعلم</th><td width="35%" id="pdf_name" class="font-bold text-sm">...</td>
+                        <th width="15%">الرقم الوظيفي</th><td width="35%" id="pdf_id">...</td>
+                    </tr>
+                    <tr>
+                        <th>المادة</th><td id="pdf_subject">...</td>
+                        <th>العام الدراسي</th><td id="pdf_year" class="font-bold italic">...</td>
+                    </tr>
+                    <tr>
+                        <th>سنة التقييم</th><td id="pdf_eval_year" colspan="3" class="font-black text-blue-900 text-sm">...</td>
+                    </tr>
+                </table>
+
+                <!-- Detailed Performance Table -->
+                <table class="w-full detail-table mb-4 text-[9px]">
+                    <thead>
+                        <tr class="bg-blue-900 text-white">
+                            <th class="!bg-blue-900 !text-white" width="20%">المحور</th>
+                            <th class="!bg-blue-900 !text-white" width="45%">البنود والبيانات</th>
+                            <th class="!bg-blue-900 !text-white" width="15%">القيمة المدخلة</th>
+                            <th class="!bg-blue-900 !text-white" width="20%">النسبة المستحقة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pdf_table_body"></tbody>
+                    <tfoot class="bg-blue-50">
+                        <tr class="font-black text-xs">
+                            <td colspan="3" class="text-left p-2 italic">الدرجة النهائية المستحقة (إجمالي 100%):</td>
+                            <td id="pdf_total" class="text-blue-900 text-sm font-black">0%</td>
+                        </tr>
+                        <tr class="font-bold">
+                            <td colspan="3" class="text-left p-1">التقدير العام:</td>
+                            <td id="pdf_rating">...</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="flex justify-between items-end mt-12 px-10 font-bold text-[10px]">
+                    <div class="text-center">
+                        <p>اسم المعلم:</p>
+                        <p class="mt-8">..................................</p>
+                    </div>
+                    <div class="text-center">
+                        <p>مدير المدرسة:</p>
+                        <p class="mt-8">..................................</p>
+                    </div>
+                </div>
+
+                <!-- Footer Copyright (Print) -->
+                <div class="mt-8 border-t border-gray-300 pt-2 text-center text-[8px] text-gray-500 font-bold">
+                    جميع الحقوق محفوظة للأستاذ : محمد بن سعيد بن محمد السعدي معلم أول تربية إسلامية
+                </div>
+            </section>
+
+            <!-- Control Buttons -->
+            <div class="flex flex-wrap justify-center gap-4 no-print pb-10">
+                <button onclick="saveCurrentEvaluation()" class="bg-blue-700 hover:bg-blue-800 text-white px-8 py-3 rounded-full font-black shadow-lg transition-all active:scale-95 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    حفظ التقييم
+                </button>
+                <button onclick="printReport()" class="bg-gray-800 hover:bg-black text-white px-8 py-3 rounded-full font-black shadow-lg transition-all active:scale-95 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    طباعة التقرير
+                </button>
+                <button onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-full font-black shadow-lg">تصدير PDF</button>
+                <button onclick="sendWhatsApp()" class="bg-green-600 text-white px-8 py-3 rounded-full font-bold">إرسال واتساب</button>
+            </div>
+
+            <!-- Screen Footer -->
+            <footer class="no-print border-t border-gray-200 mt-10 pt-6 pb-20 text-center">
+                <div class="bg-gray-100 inline-block px-6 py-2 rounded-full border border-gray-200">
+                    <p class="text-gray-600 text-sm font-bold">
+                        جميع الحقوق محفوظة للأستاذ : <span class="text-blue-900">محمد بن سعيد بن محمد السعدي</span> معلم أول تربية إسلامية
+                    </p>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        let teachersDB = JSON.parse(localStorage.getItem('teachers_db')) || [];
+        
+        const techTitles = [
+            "تحصيل الطلبة في الأعمال الصفية وغير الصفية",
+            "التقدم الدراسي للطلبة بما فيهم ذوي الإعاقة والاحتياجات التعليمية",
+            "تطبيق مهارات التعلم ( الذاتي – التعاوني – الرقمي – التفكير العليا ) وربطها بالواقع",
+            "تمسك الطلبة بالهوية العمانية والقيم الإنسانية",
+            "متابعة جوانب الأمن والسلامة والنظافة في بيئة التعلم",
+            "تخطيط المنهاج الدراسي لتحقيق نواتج التعلم",
+            "فاعلية الإدارة الصفية",
+            "توظيف استراتيجيات التدريس الفعالة",
+            "تفعيل المصادر والموارد التعليمية",
+            "توظيف أساليب تقويم متنوعة",
+            "توظيف التقويم الذاتي والتطوير المهني في تحسين الأداء",
+            "تطبيق السياسات والأنظمة واللوائح المنظمة للعمل",
+            "تنفيذ مبادرات وانشطة تربوية في المجتمع المدرسي"
+        ];
+
+        window.onload = () => {
+            renderTeachersList();
+            updateAll();
+            setupExcelImport();
+        };
+
+        function renderTeachersList() {
+            const list = document.getElementById('teachersList');
+            const quickAccess = document.getElementById('quickAccessBody');
+            
+            list.innerHTML = teachersDB.map(t => `<option value="${t.name}">`).join('');
+            
+            quickAccess.innerHTML = teachersDB.map((t, index) => {
+                const score = t.lastScore || 0;
+                const ratingClass = "rating-" + (t.lastRating || "بدون-تقييم").replace(/\s/g, '-');
+                return `
+                    <tr class="hover:bg-blue-50 transition-colors cursor-pointer border-b">
+                        <td class="p-2 text-right font-bold text-blue-800" onclick="selectTeacherByIndex(${index})">${t.name}</td>
+                        <td class="p-2" onclick="selectTeacherByIndex(${index})">${t.id || '-'}</td>
+                        <td class="p-2 font-black" onclick="selectTeacherByIndex(${index})">${score.toFixed(2)}%</td>
+                        <td class="p-2 ${ratingClass}" onclick="selectTeacherByIndex(${index})">${t.lastRating || 'بدون تقييم'}</td>
+                        <td class="p-2">
+                            <button onclick="deleteTeacher(${index})" class="text-red-600 hover:text-red-900" title="حذف">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function selectTeacherByIndex(index) {
+            const t = teachersDB[index];
+            if(t) {
+                document.getElementById('teacherSearch').value = t.name || "";
+                document.getElementById('jobId').value = t.id || "";
+                document.getElementById('subject').value = t.subject || "";
+                document.getElementById('phone').value = t.phone || "";
+                if(t.year) document.getElementById('academicYear').value = t.year;
+                if(t.evalYear) document.getElementById('evaluationYear').value = t.evalYear;
+                updateAll();
+            }
+        }
+
+        function saveCurrentEvaluation() {
+            const name = document.getElementById('teacherSearch').value.trim();
+            const id = document.getElementById('jobId').value.trim();
+            const subject = document.getElementById('subject').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const year = document.getElementById('academicYear').value;
+            const evalYear = document.getElementById('evaluationYear').value;
+            
+            if(!name) return alert("يرجى إدخال اسم المعلم أولاً");
+
+            const scoreText = document.getElementById('pdf_total').innerText;
+            const score = parseFloat(scoreText);
+            const rating = document.getElementById('pdf_rating').innerText;
+
+            const index = teachersDB.findIndex(t => t.name === name);
+            if(index !== -1) {
+                teachersDB[index].id = id;
+                teachersDB[index].subject = subject;
+                teachersDB[index].phone = phone;
+                teachersDB[index].year = year;
+                teachersDB[index].evalYear = evalYear;
+                teachersDB[index].lastScore = score;
+                teachersDB[index].lastRating = rating;
+            } else {
+                teachersDB.push({
+                    name, id, subject, phone, year, evalYear,
+                    lastScore: score,
+                    lastRating: rating
+                });
+            }
+
+            localStorage.setItem('teachers_db', JSON.stringify(teachersDB));
+            renderTeachersList();
+            alert(`تم حفظ بيانات وتقييم المعلم: ${name} بنجاح.`);
+        }
+
+        function deleteTeacher(index) {
+            if(confirm('هل أنت متأكد من حذف هذا المعلم؟')) {
+                teachersDB.splice(index, 1);
+                localStorage.setItem('teachers_db', JSON.stringify(teachersDB));
+                renderTeachersList();
+            }
+        }
+
+        function clearAllTeachers() {
+            if(confirm('سيتم حذف جميع المعلمين، هل أنت متأكد؟')) {
+                teachersDB = [];
+                localStorage.setItem('teachers_db', JSON.stringify(teachersDB));
+                renderTeachersList();
+            }
+        }
+
+        // Helper: render search results into a container
+        function renderSearchResults(results, containerId) {
+            const c = document.getElementById(containerId);
+            if(!c) return;
+            if(!results || results.length === 0) { c.classList.add('hidden'); c.innerHTML = ''; return; }
+            c.innerHTML = results.map(t => `
+                <div class="p-2 hover:bg-gray-100 cursor-pointer" onclick="selectTeacherFromSearch('${t.name.replace(/'/g, "\\'")}')">
+                    <div class="font-bold text-sm">${t.name}</div>
+                    <div class="text-xs text-gray-500">${t.id || ''} • ${t.subject || ''} • ${t.phone || ''}</div>
+                </div>
+            `).join('');
+            c.classList.remove('hidden');
+        }
+
+        function clearAllSearchResults() {
+            ['searchResults_name','searchResults_id','searchResults_subject','searchResults_phone'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) { el.classList.add('hidden'); el.innerHTML = ''; }
+            });
+        }
+
+        function selectTeacherFromSearch(name) {
+            const t = teachersDB.find(x => x.name === name);
+            if(!t) return alert('المعلم غير موجود.');
+            // Fill core fields only (حسب طلبك: الاسم/الرقم/المادة/الهاتف)
+            document.getElementById('teacherSearch').value = t.name || '';
+            document.getElementById('jobId').value = t.id || '';
+            document.getElementById('subject').value = t.subject || '';
+            document.getElementById('phone').value = t.phone || '';
+            // لا نغيّر academicYear/evalYear تلقائياً هنا (كما طلبت)
+            clearAllSearchResults();
+            updateAll();
+        }
+
+        function performFieldSearch(field, inputId) {
+            const q = (document.getElementById(inputId).value || '').toString().trim().toLowerCase();
+            if(!q) return alert('يرجى إدخال قيمة للبحث');
+            let matches = [];
+            if(field === 'name') matches = teachersDB.filter(t => (t.name || '').toLowerCase().includes(q));
+            else if(field === 'id') matches = teachersDB.filter(t => (t.id || '').toString().toLowerCase().includes(q));
+            else if(field === 'subject') matches = teachersDB.filter(t => (t.subject || '').toLowerCase().includes(q));
+            else if(field === 'phone') matches = teachersDB.filter(t => (t.phone || '').toLowerCase().includes(q));
+
+            if(matches.length === 0) return alert('لم يتم العثور على نتائج.');
+            // If exactly one match, autofill core fields immediately
+            if(matches.length === 1) {
+                const t = matches[0];
+                document.getElementById('teacherSearch').value = t.name || '';
+                document.getElementById('jobId').value = t.id || '';
+                document.getElementById('subject').value = t.subject || '';
+                document.getElementById('phone').value = t.phone || '';
+                clearAllSearchResults();
+                updateAll();
+                return;
+            }
+            // Otherwise show suggestions in the relevant container
+            const containerMap = {name: 'searchResults_name', id: 'searchResults_id', subject: 'searchResults_subject', phone: 'searchResults_phone'};
+            renderSearchResults(matches, containerMap[field]);
+        }
+
+        // Enhanced autoFill: on typing, if a single (or strong partial) match exists, fill core fields; otherwise show suggestions
+        function autoFillTeacherData(searchType) {
+            const val = (searchType === 'name') ? (document.getElementById('teacherSearch').value || '').trim()
+                      : (searchType === 'id') ? (document.getElementById('jobId').value || '').toString().trim()
+                      : (searchType === 'subject') ? (document.getElementById('subject').value || '').trim()
+                      : (searchType === 'phone') ? (document.getElementById('phone').value || '').trim()
+                      : '';
+            if(!val) { // clear suggestions
+                if(searchType === 'name') renderSearchResults([], 'searchResults_name');
+                if(searchType === 'id') renderSearchResults([], 'searchResults_id');
+                if(searchType === 'subject') renderSearchResults([], 'searchResults_subject');
+                if(searchType === 'phone') renderSearchResults([], 'searchResults_phone');
+                updateAll();
+                return;
+            }
+            const q = val.toLowerCase();
+            let matches = [];
+            if(searchType === 'name') matches = teachersDB.filter(t => (t.name || '').toLowerCase().includes(q));
+            if(searchType === 'id') matches = teachersDB.filter(t => (t.id || '').toString().toLowerCase().includes(q));
+            if(searchType === 'subject') matches = teachersDB.filter(t => (t.subject || '').toLowerCase().includes(q));
+            if(searchType === 'phone') matches = teachersDB.filter(t => (t.phone || '').toLowerCase().includes(q));
+
+            // If single close match where name starts with value or id exact, fill core fields
+            if(matches.length === 1 || (matches.length > 0 && searchType === 'name' && matches[0].name.toLowerCase().startsWith(q) && matches[0].name.toLowerCase() === q)) {
+                const t = matches[0];
+                document.getElementById('jobId').value = t.id || '';
+                document.getElementById('subject').value = t.subject || '';
+                document.getElementById('phone').value = t.phone || '';
+                // don't change academicYear/evalYear here
+                renderSearchResults([], 'searchResults_name');
+            } else {
+                // Show suggestions (do not auto-change other fields)
+                if(searchType === 'name') renderSearchResults(matches, 'searchResults_name');
+                if(searchType === 'id') renderSearchResults(matches, 'searchResults_id');
+                if(searchType === 'subject') renderSearchResults(matches, 'searchResults_subject');
+                if(searchType === 'phone') renderSearchResults(matches, 'searchResults_phone');
+            }
+            updateAll();
+        }
+
+        // Close suggestions when clicking outside (fixed mapping to inputs)
+        document.addEventListener('click', (e) => {
+            const containers = ['searchResults_name','searchResults_id','searchResults_subject','searchResults_phone'];
+            const map = { searchResults_name: 'teacherSearch', searchResults_id: 'jobId', searchResults_subject: 'subject', searchResults_phone: 'phone' };
+            containers.forEach(id => {
+                const el = document.getElementById(id);
+                const anchor = document.getElementById(map[id]);
+                if(!el) return;
+                if(!el.classList.contains('hidden')) {
+                    if(!el.contains(e.target) && !(anchor && anchor.contains(e.target))) {
+                        el.classList.add('hidden');
+                    }
+                }
+            });
+        });
+
+        function updateAll() {
+            const currentYear = document.getElementById('academicYear').value;
+            const evalYear = document.getElementById('evaluationYear').value;
+            document.getElementById('screen_selected_year').innerText = evalYear + " م";
+
+            const techInputs = document.querySelectorAll('.tech-item');
+            let techSum = 0;
+            techInputs.forEach(input => {
+                let val = parseFloat(input.value) || 4;
+                if(val < 1) val = 1; if(val > 4) val = 4;
+                techSum += (5 - val);
+            });
+            const techFinal = (techSum / 52) * 75;
+            document.getElementById('tech_final_display').innerText = techFinal.toFixed(2);
+
+            // حساب متوسط الحضور من الشهور الـ 12 (نسب مئوية)
+            let totalPercentage = 0;
+            
+            for(let i = 1; i <= 12; i++) {
+                const monthPercent = parseFloat(document.getElementById('month_' + i).value) || 0;
+                totalPercentage += monthPercent;
+            }
+            
+            const attendanceAverage = totalPercentage / 12;
+            document.getElementById('attendance_average').innerText = attendanceAverage.toFixed(2);
+            
+            // استخدام المتوسط كقيمة من 100 للحضور
+            const adm1 = attendanceAverage;
+            const adm2 = parseFloat(document.getElementById('adm_2').value) || 0;
+            const adm3 = parseFloat(document.getElementById('adm_3').value) || 0;
+            
+            const adminTotal100 = ((adm1 + adm2 + adm3) / 214) * 100;
+            document.getElementById('adm_total_100').innerText = adminTotal100.toFixed(2);
+            const adminFinal = (adminTotal100 / 100) * 10;
+            document.getElementById('adm_final_display').innerText = adminFinal.toFixed(2);
+
+            const d1 = parseFloat(document.getElementById('dev_1').value) || 0;
+            const d2 = parseFloat(document.getElementById('dev_2').value) || 0;
+            const d3 = parseFloat(document.getElementById('dev_3').value) || 0;
+            const devFinal = d1 + d2 + d3;
+            document.getElementById('dev_final_display').innerText = devFinal.toFixed(2);
+
+            const total = techFinal + adminFinal + devFinal;
+            const finalScore = Math.min(100, total);
+            
+            document.getElementById('screen_total_percent').innerText = finalScore.toFixed(2) + "%";
+            document.getElementById('pdf_total').innerText = finalScore.toFixed(2) + "%";
+
+            let rat = "يحتاج تدخل سريع";
+            if(finalScore >= 90) rat = "ممتاز";
+            else if(finalScore >= 80) rat = "جيد جدا";
+            else if(finalScore >= 70) rat = "جيد";
+            else if(finalScore >= 60) rat = "مقبول";
+            
+            document.getElementById('screen_final_rating').innerText = rat;
+            document.getElementById('pdf_rating').innerText = rat;
+
+            document.getElementById('pdf_name').innerText = document.getElementById('teacherSearch').value || '.......';
+            document.getElementById('pdf_id').innerText = document.getElementById('jobId').value || '.......';
+            document.getElementById('pdf_subject').innerText = document.getElementById('subject').value || '.......';
+            document.getElementById('pdf_year').innerText = currentYear + " م";
+            document.getElementById('pdf_eval_year').innerText = evalYear + " م";
+
+            let html = `<tr><td rowspan="14" class="font-bold bg-gray-50 text-blue-900">المحور الفني (75%)</td><td colspan="2" class="bg-gray-100 font-bold">البنود الإشرافية</td><td rowspan="14" class="font-black text-blue-800">${techFinal.toFixed(2)}%</td></tr>`;
+            techInputs.forEach((input, i) => {
+                html += `<tr><td class="text-right pr-2 text-[8px] leading-tight">${techTitles[i]}</td><td class="font-bold">${input.value}</td></tr>`;
+            });
+            const monthsData = [];
+            for(let i = 1; i <= 12; i++) {
+                monthsData.push(parseFloat(document.getElementById('month_' + i).value).toFixed(1) + '%');
+            }
+            html += `<tr><td rowspan="3" class="font-bold text-emerald-900">الإداري (10%)</td><td class="text-[8px]">الحضور الشهري % (12 شهر)</td><td class="font-bold text-[7px]">${monthsData.join('|')}</td><td rowspan="3" class="font-black text-emerald-800">${adminFinal.toFixed(2)}%</td></tr>`;
+            html += `<tr><td>متوسط الحضور / الطابور والاحتياط / المناوبة</td><td class="font-bold">${adm1.toFixed(2)}|${adm2}|${adm3}</td></tr>`;
+            html += `<tr><td colspan="2" class="text-[8px] italic">النسبة الكلية: ${adminTotal100.toFixed(2)}%</td></tr>`;
+            html += `<tr><td class="font-bold text-orange-900">التطوير (15%)</td><td>أثر | ابتكار | مبادرة</td><td class="font-bold">${d1}|${d2}|${d3}</td><td class="font-black text-orange-800">${devFinal.toFixed(2)}%</td></tr>`;
+            document.getElementById('pdf_table_body').innerHTML = html;
+        }
+
+        function setupExcelImport() {
+            document.getElementById('excelUpload').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const workbook = XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const imported = json.map(row => ({
+                        name: (row['الاسم'] || row['Name'] || "").toString(),
+                        id: (row['الرقم الوظيفي'] || row['ID'] || "").toString(),
+                        subject: (row['المادة'] || row['Subject'] || "").toString(),
+                        phone: (row['الهاتف'] || row['Phone'] || "").toString(),
+                        year: document.getElementById('academicYear').value,
+                        evalYear: document.getElementById('evaluationYear').value,
+                        lastScore: 0, lastRating: "بدون تقييم"
+                    })).filter(i => i.name);
+                    teachersDB = [...teachersDB, ...imported];
+                    localStorage.setItem('teachers_db', JSON.stringify(teachersDB));
+                    renderTeachersList();
+                    alert("تم الاستيراد بنجاح");
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function printReport() { window.print(); }
+        
+        async function exportToPDF() {
+            // Use the browser print dialog to export to PDF. print.css ensures only the report content is printed.
+            // Keeping this function async preserves compatibility with any code that awaits it.
+            window.print();
+        }
+
+        function sendWhatsApp() {
+            // التحقق من بيئة التشغيل - يجب أن يكون HTTPS أو localhost
+            const isSecure = window.location.protocol === 'https:';
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isFile = window.location.protocol === 'file:';
+            
+            if (isFile) {
+                alert('⚠️ تنبيه: الموقع يعمل كملف محلي.\n\n✅ الحل: ارفع الموقع على خادم يدعم HTTPS مثل:\n• GitHub Pages (مجاني)\n• Netlify\n• Vercel\n\nالبروتوكول الحالي: file://');
+                return;
+            }
+            
+            if (!isSecure && !isLocalhost) {
+                alert('⚠️ اتصال غير آمن (HTTP)\n\nزر إرسال واتساب يعمل فقط على اتصال آمن (HTTPS).\n\n✅ الحل المقترح:\n1. استضف الموقع على GitHub Pages (يوفر HTTPS تلقائيًا)\n2. استخدم خدمة استضافة تدعم HTTPS\n\n📌 البروتوكول الحالي: ' + window.location.protocol + '\n📌 مطلوب: https://');
+                return;
+            }
+
+            // التحقق من عدم العمل داخل iframe
+            if (window.self !== window.top) {
+                alert('لا يمكن إرسال رسائل واتساب من داخل إطار مضمن.');
+                return;
+            }
+
+            const phone = document.getElementById('phone').value;
+            const name = document.getElementById('pdf_name').innerText;
+            const score = document.getElementById('pdf_total').innerText;
+            const evalYear = document.getElementById('pdf_eval_year').innerText;
+            
+            if(!phone || phone === ".......") {
+                alert("رقم الواتساب غير متوفر.");
+                return;
+            }
+            
+            const cleanPhone = phone.replace(/\D/g, '');
+            if(!cleanPhone) {
+                alert("رقم الهاتف غير صالح.");
+                return;
+            }
+            
+            const msg = `الأستاذ ${name}، تم رصد تقييمكم في منظومة إجادة لعام ${evalYear} بنسبة (${score}). مع التحية.`;
+            const encodedMsg = encodeURIComponent(msg);
+            const whatsappURL = `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
+            
+            // محاولة فتح في نافذة جديدة
+            try {
+                const newWindow = window.open(whatsappURL, '_blank', 'noopener,noreferrer');
+                if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                    // إذا تم حظر النافذة، استخدم location.href
+                    window.location.href = whatsappURL;
+                }
+            } catch (e) {
+                // في حالة حدوث خطأ، استخدم location.href مباشرة
+                window.location.href = whatsappURL;
+            }
+        }
+    </script>
+</body>
+</html>
